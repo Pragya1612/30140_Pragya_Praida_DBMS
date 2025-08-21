@@ -1,0 +1,46 @@
+-- This SQL script creates the 'transactions' table for the finance tracker application.
+
+-- The CREATE TABLE statement defines the structure of the table.
+-- It's designed to store all financial transactions, both revenue and expenses.
+CREATE TABLE transactions (
+    -- The `id` column is a unique identifier for each transaction.
+    -- `SERIAL` automatically creates a sequence and provides a unique integer for each new row.
+    -- `PRIMARY KEY` enforces uniqueness and is used for efficient data retrieval.
+    id SERIAL PRIMARY KEY,
+
+    -- `transaction_date` stores the date of the transaction. `DATE` is an efficient type for this.
+    -- `NOT NULL` ensures that every transaction must have a date.
+    transaction_date DATE NOT NULL,
+
+    -- `description` provides a brief text summary of the transaction.
+    -- `VARCHAR(255)` specifies a variable-length character string with a maximum length.
+    description VARCHAR(255),
+
+    -- `amount` stores the monetary value.
+    -- `DECIMAL(10, 2)` is used for precision, storing up to 10 digits with 2 decimal places,
+    -- which is crucial for financial data to prevent rounding errors.
+    -- `NOT NULL` ensures an amount is always provided.
+    amount DECIMAL(10, 2) NOT NULL,
+
+    -- `type` categorizes the transaction.
+    -- `VARCHAR(50)` is used for the string value.
+    -- The `CHECK` constraint is very important here; it ensures that the only allowed
+    -- values for this column are 'Revenue' or 'Expense', maintaining data integrity.
+    type VARCHAR(50) NOT NULL CHECK (type IN ('Revenue', 'Expense'))
+);
+
+-- The following INSERT statements add some initial data to the table.
+-- This is useful for testing the application immediately after setting up the database.
+INSERT INTO transactions (transaction_date, description, amount, type) VALUES
+('2024-01-01', 'January Rent', 1500.00, 'Expense'),
+('2024-01-05', 'Consulting Project A', 5000.00, 'Revenue'),
+('2024-01-10', 'Office Supplies', 150.75, 'Expense'),
+('2024-01-15', 'Client B Payment', 2500.00, 'Revenue'),
+('2024-02-01', 'February Rent', 1500.00, 'Expense'),
+('2024-02-03', 'Client C Retainer', 3000.00, 'Revenue'),
+('2024-02-10', 'Marketing Software', 75.00, 'Expense'),
+('2024-02-20', 'Consulting Project D', 4500.00, 'Revenue'),
+('2024-03-01', 'March Rent', 1500.00, 'Expense'),
+('2024-03-15', 'Client E Payment', 1200.00, 'Revenue'),
+('2024-03-20', 'Lunch with client', 50.00, 'Expense'),
+('2024-03-25', 'Client F Project', 6000.00, 'Revenue');
