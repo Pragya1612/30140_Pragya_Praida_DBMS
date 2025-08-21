@@ -1,1 +1,125 @@
 #### Backened file#####
+# backend_fin.py
+
+import psycopg2
+import pandas as pd
+from contextlib import contextmanager
+
+# The database connection details are hardcoded here for simplicity.
+# In a real-world application, these should be managed more securely (e.g., environment variables).
+DB_CONFIG = {
+    "host": "localhost",
+    "database": "Fin_Tracker",
+    "user": "postgres", # Replace with your PostgreSQL username
+    "password": "@Kshay123" # Replace with your PostgreSQL password
+}
+
+@contextmanager
+def get_db_connection():
+    """
+    Context manager to handle database connection.
+    It automatically closes the connection and cursor.
+    """
+    conn = None
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        yield conn
+    except psycopg2.Error as e:
+        print(f"Database connection error: {e}")
+        # In a real app, you might raise an exception or log this error
+    finally:
+        if conn:
+            conn.close()
+
+class FinancialTrackerBackend:
+    """
+    Manages all database interactions for the finance tracker application.
+    """
+    def __init__(self):
+        """Initializes the backend manager."""
+        pass # The DB connection is handled by the context manager
+
+    # --- CRUD Principles: READ ---
+    def get_all_transactions(self):
+        """Fetches all transactions from the database."""
+        sql = "SELECT id, transaction_date, description, amount, type FROM transactions ORDER BY transaction_date DESC;"
+        with get_db_connection() as conn:
+            if conn is None: return pd.DataFrame()
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(sql)
+                    transactions = cur.fetchall()
+                    columns = [desc[0] for desc in cur.description]
+                    return pd.DataFrame(transactions, columns=columns)
+                except psycopg2.Error as e:
+                    print(f"Error executing query: {e}")
+                    return pd.DataFrame()
+
+    def get_filtered_and_sorted_transactions(self, transaction_type=None, sort_by='transaction_date', sort_order='DESC'):
+        """
+        Fetches transactions with optional filtering and sorting.
+        This function combines the READ, Filtering, and Sorting requirements.
+        """
+        if sort_by not in ['amount', 'transaction_date']:
+            sort_by = 'transaction_date'
+        
+        if sort_order.upper() not in ['ASC', 'DESC']:
+            sort_order = 'DESC'
+
+        sql = f"SELECT id, transaction_date, description, amount, type FROM transactions "
+        params = []
+        if transaction_type and transaction_type != 'All':
+            sql += "WHERE type = %s "
+            params.append(transaction_type)
+        
+        sql += f"ORDER BY {sort_by} {sort_order};"
+        
+        with get_db_connection() as conn:
+            if conn is None: return pd.DataFrame()
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(sql, tuple(params))
+                    transactions = cur.fetchall()
+                    columns = [desc[0] for desc in cur.description]
+                    return pd.DataFrame(transactions, columns=columns)
+                except psycopg2.Error as e:
+                    print(f"Error executing query: {e}")
+                    return pd.DataFrame()
+
+    # --- Aggregation and Business Insights ---
+    def get_aggregate_metrics(self):
+        """
+        Calculates and returns key financial metrics.
+        Returns a dictionary with 'total_count', 'revenue_sum', and 'expense_sum'.
+        """
+        sql = """
+            SELECT
+                COUNT(*),
+                SUM(CASE WHEN type = 'Revenue' THEN amount ELSE 0 END),
+                SUM(CASE WHEN type = 'Expense' THEN amount ELSE 0 END)
+            FROM transactions;
+        """
+        with get_db_connection() as conn:
+            if conn is None: return {'total_count': 0, 'revenue_sum': 0.0, 'expense_sum': 0.0}
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(sql)
+                    count, revenue, expense = cur.fetchone()
+                    return {
+                        'total_count': int(count) if count is not None else 0,
+                        'revenue_sum': float(revenue) if revenue is not None else 0.0,
+                        'expense_sum': float(expense) if expense is not None else 0.0
+                    }
+                except psycopg2.Error as e:
+                    print(f"Error executing query: {e}")
+                    return {'total_count': 0, 'revenue_sum': 0.0, 'expense_sum': 0.0}
+
+    def get_net_income(self):
+        """
+        Calculates the Net Income (Total Revenue - Total Expense).
+        """
+        metrics = self.get_aggregate_metrics()
+        revenue_sum = metrics['revenue_sum']
+        expense_sum = metrics['expense_sum']
+        net_income = revenue_sum - expense_sum
+        return net_income
