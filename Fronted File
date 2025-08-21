@@ -1,1 +1,83 @@
+# frontend_fin.py
+
+import streamlit as st
+from Backened import FinancialTrackerBackend
+import pandas as pd
+
+# Set page configuration for a wider layout
+st.set_page_config(layout="wide", page_title="Finance: Revenue & Expense Tracker")
+
+# Initialize the backend class
+db_backend = FinancialTrackerBackend()
+
+# --- Application Header ---
+st.title("💰 Finance: Revenue & Expense Tracker")
+st.markdown("A simple application to track financial transactions and gain business insights.")
+st.divider()
+
+# --- Business Insights Section ---
+st.header("📈 Business Insights")
+col1, col2, col3, col4 = st.columns(4)
+
+# Get the aggregated metrics from the backend
+metrics = db_backend.get_aggregate_metrics()
+total_count = metrics['total_count']
+revenue_sum = metrics['revenue_sum']
+expense_sum = metrics['expense_sum']
+net_income = db_backend.get_net_income()
+
+with col1:
+    st.metric(label="Total Transactions", value=f"{total_count}")
+with col2:
+    st.metric(label="Total Revenue (SUM)", value=f"${revenue_sum:,.2f}")
+with col3:
+    st.metric(label="Total Expense (SUM)", value=f"${expense_sum:,.2f}")
+with col4:
+    st.metric(
+        label="Net Income (SUM(Rev) - SUM(Exp))",
+        value=f"${net_income:,.2f}",
+        delta=f"{net_income:,.2f}" # Can be used for a visual indicator
+    )
+
+st.divider()
+
+# --- Transaction Filter and Sorting Section ---
+st.header("📖 All Transactions")
+
+# Use columns for a clean layout of filter and sort options
+col_filter, col_sort, col_order = st.columns(3)
+
+with col_filter:
+    transaction_type = st.selectbox(
+        "Filter by Type",
+        options=['All', 'Revenue', 'Expense'],
+        help="Select a transaction type to filter the table."
+    )
+
+with col_sort:
+    sort_by = st.selectbox(
+        "Sort By",
+        options=['transaction_date', 'amount'],
+        help="Choose a column to sort the transactions by."
+    )
+
+with col_order:
+    sort_order = st.selectbox(
+        "Sort Order",
+        options=['DESC', 'ASC'],
+        help="Select the order for sorting (Descending or Ascending)."
+    )
+
+# Fetch transactions based on the user's selections
+df = db_backend.get_filtered_and_sorted_transactions(transaction_type, sort_by, sort_order)
+
+# --- Display Transactions ---
+if not df.empty:
+    st.dataframe(df, use_container_width=True)
+else:
+    st.warning("No transactions found.")
+
+# The application is complete. To run it, make sure you have the required
+# libraries installed (`pip install streamlit psycopg2-binary pandas`) and
+# execute the frontend file from your terminal: `streamlit run frontend_fin.py`.
 
