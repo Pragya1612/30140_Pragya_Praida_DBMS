@@ -1,0 +1,259 @@
+-------Fronted-------
+import streamlit as st
+from datetime import date
+import Backened as db
+
+st.title("🏋️ Personal Fitness Tracker")
+
+menu = st.sidebar.selectbox("Menu", ["Profile", "Workouts", "Friends", "Goals", "Leaderboard"])
+
+# ---------------- PROFILE ----------------
+if menu == "Profile":
+    st.header("User Profile")
+    user = db.get_user()
+    if user:
+        name, email, weight = user
+        name = st.text_input("Name", name)
+        email = st.text_input("Email", email)
+        weight = st.number_input("Weight (kg)", value=float(weight))
+        if st.button("Update Profile"):
+            db.update_user(name, email, weight)
+            st.success("Profile updated successfully!")
+    else:
+        st.write("No profile found. Create one:")
+        name = st.text_input("Name")
+        email = st.text_input("Email")
+        weight = st.number_input("Weight (kg)", min_value=30.0)
+        if st.button("Create Profile"):
+            db.create_user(name, email, weight)
+            st.success("Profile created successfully!")
+
+# ---------------- WORKOUTS ----------------
+elif menu == "Workouts":
+    st.header("Log a Workout")
+    workout_date = st.date_input("Workout Date", date.today())
+    duration = st.number_input("Duration (minutes)", min_value=1)
+    if st.button("Add Workout"):
+        user_id = 1
+        workout_id = db.add_workout(user_id, workout_date, duration)
+        st.success("Workout logged!")
+    
+    st.subheader("Add Exercise to Last Workout")
+    exercise_name = st.text_input("Exercise Name")
+    sets = st.number_input("Sets", min_value=1)
+    reps = st.number_input("Reps", min_value=1)
+    weight = st.number_input("Weight (kg)", min_value=0.0)
+    if st.button("Add Exercise"):
+        db.add_exercise(workout_id, exercise_name, sets, reps, weight)
+        st.success("Exercise added!")
+    
+    st.subheader("Workout History")
+    history = db.get_workout_history(1)
+    for h in history:
+        st.write(f"Date: {h[0]}, Duration: {h[1]} mins")
+
+# ---------------- FRIENDS ----------------
+elif menu == "Friends":
+    st.header("Manage Friends")
+    new_friend = st.text_input("Friend Name")
+    if st.button("Add Friend"):
+        db.add_friend(1, new_friend)
+        st.success(f"{new_friend} added to your friends!")
+    
+    st.subheader("Your Friends")
+    friends = db.get_friends(1)
+    for f in friends:
+        st.write(f)
+    
+    remove_friend = st.selectbox("Remove Friend", friends)
+    if st.button("Remove"):
+        db.delete_friend(remove_friend)
+        st.success(f"{remove_friend} removed!")
+
+# ---------------- GOALS ----------------
+elif menu == "Goals":
+    st.header("Set Personal Goal")
+    goal_desc = st.text_input("Goal Description")
+    target = st.number_input("Target Value (e.g., 5 workouts)", min_value=1)
+    if st.button("Set Goal"):
+        db.set_goal(1, goal_desc, target)
+        st.success("Goal set successfully!")
+    
+    st.subheader("Your Goals")
+    goals = db.get_goals(1)
+    for g in goals:
+        st.write(f"{g[0]} - Target: {g[1]}, Progress: {g[2]}")
+
+# ---------------- LEADERBOARD ----------------
+elif menu == "Leaderboard":
+    st.header("Leaderboard (Friends)")
+    leaderboard = db.get_leaderboard()
+    for lb in leaderboard:
+        st.write(f"{lb[0]} - {lb[1]} mins")
+
+
+
+
+
+
+---------Backened---------
+import psycopg2
+import os
+
+DB_CONFIG = {
+    "dbname": "Fitness_App",
+    "user": "postgres",
+    "password": "@Kshay123",
+    "host": "localhost",
+    "port": "5432"
+}
+
+def get_connection():
+    return psycopg2.connect(**DB_CONFIG)
+
+# -------------------- USER PROFILE --------------------
+def create_user(name, email, weight):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO users (name, email, weight) VALUES (%s, %s, %s) RETURNING user_id;",
+                (name, email, weight))
+    user_id = cur.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return user_id
+
+def get_user():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT name, email, weight FROM users LIMIT 1;")
+    user = cur.fetchone()
+    conn.close()
+    return user
+
+def update_user(name, email, weight):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET name=%s, email=%s, weight=%s WHERE user_id=1;", (name, email, weight))
+    conn.commit()
+    conn.close()
+
+# -------------------- FRIENDS --------------------
+def add_friend(user_id, friend_name):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO friends (user_id, friend_name) VALUES (%s, %s);", (user_id, friend_name))
+    conn.commit()
+    conn.close()
+
+def get_friends(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT friend_name FROM friends WHERE user_id=%s;", (user_id,))
+    friends = cur.fetchall()
+    conn.close()
+    return [f[0] for f in friends]
+
+def delete_friend(friend_name):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM friends WHERE friend_name=%s;", (friend_name,))
+    conn.commit()
+    conn.close()
+
+# -------------------- WORKOUTS --------------------
+def add_workout(user_id, workout_date, duration):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO workouts (user_id, workout_date, duration) VALUES (%s, %s, %s) RETURNING workout_id;",
+                (user_id, workout_date, duration))
+    workout_id = cur.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return workout_id
+
+def add_exercise(workout_id, exercise_name, sets, reps, weight):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO exercises (workout_id, exercise_name, sets, reps, weight) VALUES (%s, %s, %s, %s, %s);",
+                (workout_id, exercise_name, sets, reps, weight))
+    conn.commit()
+    conn.close()
+
+def get_workout_history(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT workout_date, duration FROM workouts WHERE user_id=%s ORDER BY workout_date DESC;", (user_id,))
+    workouts = cur.fetchall()
+    conn.close()
+    return workouts
+
+# -------------------- GOALS --------------------
+def set_goal(user_id, description, target_value):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO goals (user_id, description, target_value) VALUES (%s, %s, %s);",
+                (user_id, description, target_value))
+    conn.commit()
+    conn.close()
+
+def get_goals(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT description, target_value, current_value FROM goals WHERE user_id=%s;", (user_id,))
+    goals = cur.fetchall()
+    conn.close()
+    return goals
+
+# -------------------- LEADERBOARD --------------------
+def get_leaderboard():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT friend_name, COALESCE(SUM(duration), 0) as total_minutes
+        FROM friends
+        LEFT JOIN workouts ON workouts.user_id = friends.user_id
+        GROUP BY friend_name
+        ORDER BY total_minutes DESC;
+    """)
+    leaderboard = cur.fetchall()
+    conn.close()
+    return leaderboard
+
+-------------POstgeres------------
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    weight NUMERIC(5,2)
+);
+
+CREATE TABLE friends (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id),
+    friend_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE workouts (
+    workout_id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id),
+    workout_date DATE NOT NULL,
+    duration INT NOT NULL
+);
+
+CREATE TABLE exercises (
+    exercise_id SERIAL PRIMARY KEY,
+    workout_id INT REFERENCES workouts(workout_id),
+    exercise_name VARCHAR(100),
+    sets INT,
+    reps INT,
+    weight NUMERIC(6,2)
+);
+
+CREATE TABLE goals (
+    goal_id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id),
+    description TEXT NOT NULL,
+    target_value INT,
+    current_value INT DEFAULT 0
+);
+
